@@ -21,6 +21,24 @@
             box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
             max-width: 500px;
             width: 100%;
+            position: relative;
+        }
+
+        .admin-btn {
+            position: absolute;
+            top: -55px;
+            right: 0;
+            background-color: #5c6bc0;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+        }
+
+        .admin-btn:hover {
+            background-color: #3949ab;
         }
 
         h2 {
@@ -61,7 +79,10 @@
     </style>
 </head>
 <body>
+
+
 <div class="form-container">
+    <a href="/login" class="admin-btn">Panel de Administración</a>
     <h2>Formulario de Examen</h2>
     <form method="post">
         <label for="nombre">Nombre:</label>

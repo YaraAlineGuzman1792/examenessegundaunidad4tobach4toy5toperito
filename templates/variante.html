@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Variante Asignada</title>
+  <meta http-equiv="refresh" content="5;url={{ enlace }}">
+  <style>
+    body { font-family: Arial; background: linear-gradient(to bottom right, #74ebd5, #ACB6E5);
+           display:flex;justify-content:center;align-items:center;height:100vh;margin:0; }
+    .card { background:white;padding:30px;border-radius:15px;
+            box-shadow:0 8px 16px rgba(0,0,0,0.2);text-align:center;}
+    h2 { color:#333; } p { color:#555; }
+    a { display:inline-block;margin-top:15px;padding:10px 20px;
+        background:#5c6bc0;color:white;border-radius:8px;text-decoration:none; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>¡Gracias, {{ nombre }}!</h2>
+    <p>Grado: {{ grado }} — Variante: <strong>{{ variante }}</strong></p>
+    <p>Serás redirigido en unos segundos...</p>
+    <a href="{{ enlace }}">Ir ahora al formulario</a>
+  </div>
+</body>
+</html>
