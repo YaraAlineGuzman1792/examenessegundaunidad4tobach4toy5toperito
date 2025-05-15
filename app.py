@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, send_file
+from flask import Flask, render_template, request, redirect, url_for, session, send_file, jsonify
 import random
 import sqlite3
 import pandas as pd
@@ -164,32 +164,7 @@ def logout():
 
 if __name__ == '__main__':
     app.run(debug=True)
-@app.route('/admin/filtrar', methods=['GET'])
-def admin_filtrar():
-    if not session.get('admin'):
-        return redirect(url_for('login'))
 
-    grado = request.args.get('grado', None)
-    seccion = request.args.get('seccion', None)
-
-    query = "SELECT nombre, apellido, correo, grado, seccion, variante FROM examenes"
-    params = []
-
-    filtros = []
-    if grado:
-        filtros.append("grado = ?")
-        params.append(grado)
-    if seccion:
-        filtros.append("seccion = ?")
-        params.append(seccion)
-
-    if filtros:
-        query += " WHERE " + " AND ".join(filtros)
-
-    with sqlite3.connect("examenes.db") as con:
-        datos = con.execute(query, params).fetchall()
-
-    return render_template("admin.html", datos=datos, filtro_grado=grado, filtro_seccion=seccion)
 
 
 @app.context_processor
@@ -200,4 +175,66 @@ def utility_processor():
         lista_secciones=['A', 'B', 'C', 'D', 'E', 'F']  # O lo que tengas de secciones válidas
     )
 
+# Ruta para obtener secciones por grado (ya la tienes, pero confírmala)
+def login_required(args):
+    pass
 
+
+@app.route('/get_secciones/<grado>')
+@login_required
+def get_secciones(grado):
+    conn = sqlite3.connect('examenes.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT seccion FROM examenes WHERE grado = ?", (grado,))
+    secciones = [fila[0] for fila in cursor.fetchall()]
+    conn.close()
+    return jsonify(secciones)
+
+# Ruta para aplicar filtro por grado y sección
+@app.route('/filtrar_datos', methods=['POST'])
+@login_required
+def filtrar_datos(datos=None):
+    grado = request.form['grado']
+    seccion = request.form['seccion']
+
+    conn = sqlite3.connect('examenes.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM examenes WHERE grado = ? AND seccion = ?", (grado, seccion))
+    datos_filtrados = cursor.fetchall()
+
+    # Traer nuevamente todos los grados para recargar el select después del filtro
+    cursor.execute("SELECT DISTINCT grado FROM examenes")
+    grados = [fila[0] for fila in cursor.fetchall()]
+    conn.close()
+
+    return render_template('admin.html', grados=grados, datos=datos, grado=grado, seccion=seccion)
+
+
+@app.route('/get_secciones/<grado>')
+@login_required
+def get_secciones(grado):
+    # Devuelve secciones de un grado específico en JSON
+    ...
+
+@app.route('/filtrar_datos', methods=['POST'])
+@login_required
+def filtrar_datos():
+    # Filtra y muestra los datos en admin.html según grado y sección
+    ...
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('index'))
+
+@app.route('/exportar_excel')
+@login_required
+def exportar_excel():
+    # Exporta datos completos a Excel
+    ...
+
+@app.route('/exportar_pdf')
+@login_required
+def exportar_pdf():
+    # Exporta datos completos a PDF
+    ...

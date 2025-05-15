@@ -3,59 +3,160 @@
 <head>
     <meta charset="UTF-8">
     <title>Panel de Administración</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <style>
         body {
-            background: linear-gradient(to right, #a1c4fd, #c2e9fb);
             font-family: Arial, sans-serif;
-            padding: 2rem;
+            background: #f0f4f7;
+            margin: 0;
+            padding: 20px;
         }
-        .container {
-            background-color: #ffffffd9;
-            padding: 2rem;
-            border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+        h1 {
+            text-align: center;
+            color: #333;
         }
-        .btn-export {
-            margin: 1rem;
+        .logout-btn {
+            float: right;
+            background-color: #d9534f;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        .logout-btn:hover {
+            background-color: #c9302c;
+        }
+        .filter-section {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        select, button {
+            padding: 8px;
+            font-size: 14px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+        button {
+            background-color: #5c6bc0;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background-color: #3949ab;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+        }
+        th, td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: center;
+            color: #555;
+        }
+        th {
+            background-color: #5c6bc0;
+            color: white;
+        }
+        .no-data {
+            text-align: center;
+            margin-top: 20px;
+            color: #777;
+            font-style: italic;
         }
     </style>
 </head>
 <body>
-    <div class="container text-center">
-        <h2 class="mb-4">Panel de Administración</h2>
-        <div class="d-flex justify-content-center flex-wrap">
-            <a href="{{ url_for('exportar_excel') }}" class="btn btn-primary btn-export">📥 Exportar Excel</a>
-            <a href="{{ url_for('exportar_pdf') }}" class="btn btn-danger btn-export">📄 Exportar PDF</a>
-            <a href="{{ url_for('logout') }}" class="btn btn-secondary btn-export">🔓 Cerrar sesión</a>
-        </div>
 
-        <div class="table-responsive mt-4">
-            <table class="table table-striped table-bordered">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Nombre</th>
-                        <th>Apellido</th>
-                        <th>Correo</th>
-                        <th>Grado</th>
-                        <th>Sección</th>
-                        <th>Variante</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for fila in datos %}
+    <button class="logout-btn" onclick="window.location.href='/logout'">Cerrar Sesión</button>
+
+    <h1>Panel de Administración</h1>
+
+    <form id="filtro-form" method="POST" action="{{ url_for('filtrar_datos') }}" class="filter-section">
+        <label for="grado">Grado:</label>
+        <select id="grado" name="grado" required onchange="cargarSecciones()">
+            <option value="">Seleccione un grado</option>
+            {% for g in grados %}
+                <option value="{{ g }}" {% if grado == g %}selected{% endif %}>{{ g.replace('_', ' ') }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="seccion">Sección:</label>
+        <select id="seccion" name="seccion" required>
+            <option value="">Seleccione una sección</option>
+            {% if seccion %}
+                <option value="{{ seccion }}" selected>{{ seccion }}</option>
+            {% endif %}
+        </select>
+
+        <button type="submit">Filtrar</button>
+    </form>
+
+    {% if datos %}
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nombre</th>
+                    <th>Apellido</th>
+                    <th>Correo</th>
+                    <th>Grado</th>
+                    <th>Sección</th>
+                    <th>Variante</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for fila in datos %}
                     <tr>
                         <td>{{ fila[0] }}</td>
                         <td>{{ fila[1] }}</td>
                         <td>{{ fila[2] }}</td>
                         <td>{{ fila[3] }}</td>
-                        <td>{{ fila[4] }}</td>
+                        <td>{{ fila[4].replace('_', ' ') }}</td>
                         <td>{{ fila[5] }}</td>
+                        <td>{{ fila[6] }}</td>
                     </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p class="no-data">No hay datos para mostrar.</p>
+    {% endif %}
+
+    <div style="margin-top: 20px;">
+        <button onclick="window.location.href='/exportar_excel'">Exportar a Excel</button>
+        <button onclick="window.location.href='/exportar_pdf'">Exportar a PDF</button>
     </div>
+
+    <script>
+    const gradoSeleccionado = "{{ grado | default('') }}";
+
+    window.onload = () => {
+        if (gradoSeleccionado !== "") {
+            $.get("/get_secciones/" + gradoSeleccionado, function (data) {
+                const seccionSelect = $('#seccion');
+                seccionSelect.empty();
+                seccionSelect.append('<option value="">Seleccione una sección</option>');
+                $.each(data, function (i, seccion) {
+                    const selected = seccion === "{{ seccion | default('') }}" ? 'selected' : '';
+                    seccionSelect.append('<option value="' + seccion + '" ' + selected + '>' + seccion + '</option>');
+                });
+
+                // Asignar el grado seleccionado (por si el navegador resetea el valor al cargar)
+                $('#grado').val(gradoSeleccionado);
+            });
+        }
+    };
+</script>
+
+
+
 </body>
 </html>
