@@ -8,7 +8,8 @@ from fpdf import FPDF
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'clave_dev_segura')
-app.config['SESSION_COOKIE_SECURE'] = True  # Importante en Render HTTPS
+# Si usas Render con HTTPS, déjalo activo. Si pruebas local, puedes comentar para evitar problemas:
+app.config['SESSION_COOKIE_SECURE'] = True
 
 DATABASE = 'estudiantes.db'
 
@@ -89,26 +90,23 @@ def asignar():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        usuario = request.form['usuario']
-        contrasena = request.form['contrasena']
+        usuario = request.form.get('usuario')
+        contrasena = request.form.get('contrasena')
+
         if usuario == 'Ali-Chan1703' and contrasena == 'Ali-Chan1703':
             session['usuario'] = usuario
             return redirect(url_for('admin'))
         else:
             return render_template('login.html', error='Credenciales incorrectas')
+
     return render_template('login.html')
 
-@app.route('/admin')
+@app.route('/admin', methods=['GET'])
 def admin():
-    if 'usuario' not in session:
+    if 'usuario' in session:
+        return render_template('admin.html')
+    else:
         return redirect(url_for('login'))
-
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute('SELECT * FROM estudiantes')
-    datos = c.fetchall()
-    conn.close()
-    return render_template('admin.html', datos=datos)
 
 @app.route('/logout')
 def logout():
