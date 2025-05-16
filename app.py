@@ -94,8 +94,7 @@ def login():
 @app.route('/admin')
 def admin():
     if not session.get('admin'):
-        return redirect(url_for('admin')
-)
+        return redirect(url_for('admin'))
 
     with sqlite3.connect("examenes.db", check_same_thread=False) as con:
         datos = con.execute(
