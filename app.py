@@ -15,35 +15,36 @@ ADMIN_PASS = 'Ali-Chan1703'
 # Variantes por grado
 VARIANTES_POR_GRADO = {
     '4to_Bachillerato_CCLL': ['A', 'B', 'C'],
-    '4to_Perito':           ['A', 'B', 'C'],
-    '5to_Perito':           ['A', 'B', 'C']
+    '4to_Perito': ['A', 'B', 'C'],
+    '5to_Perito': ['A', 'B', 'C']
 }
 
 # Enlaces de Google Forms por grado y variante
 GOOGLE_FORMS = {
     '4to_Bachillerato_CCLL': {
-        'A': 'https://docs.google.com/forms/d/FORM_4TO_BACH_A/viewform',
-        'B': 'https://docs.google.com/forms/d/FORM_4TO_BACH_B/viewform',
-        'C': 'https://docs.google.com/forms/d/FORM_4TO_BACH_C/viewform',
+        'A': 'https://docs.google.com/forms/d/e/1FAIpQLSeRBUArBPcE59Yq9urltrrbxAUFKsp5tfq-NqLAKIDV6lt8Mg/viewform?usp=header',
+        'B': 'https://docs.google.com/forms/d/e/1FAIpQLSchLJXKeEMkrE-L8tLP_rAoLy5RvdC9G4p44sY7pwktN5dIqQ/viewform?usp=dialog',
+        'C': 'https://docs.google.com/forms/d/e/1FAIpQLSe6uLhQ9MEG_C0hXOqw8HUMuz-kn1mObpJUGlaNEFMEzo4nUg/viewform?usp=header',
     },
     '4to_Perito': {
-        'A': 'https://docs.google.com/forms/d/FORM_4TO_PERITO_A/viewform',
-        'B': 'https://docs.google.com/forms/d/FORM_4TO_PERITO_B/viewform',
-        'C': 'https://docs.google.com/forms/d/FORM_4TO_PERITO_C/viewform',
+        'A': 'https://docs.google.com/forms/d/e/1FAIpQLScWxawlIGTSALdJD9oGz0G1j5pfMZlisQlkKzzbOGEyuiCzlA/viewform?usp=header',
+        'B': 'https://docs.google.com/forms/d/e/1FAIpQLScrA4cyTR-gMnXlYz3u_InK6k8fo9dhrQ-uzLSkwGZrtHb54g/viewform?usp=dialog',
+        'C': 'https://docs.google.com/forms/d/e/1FAIpQLSdM8Yiiy9iT2DViqMNnu5dZ5rTIsaVeU3V8UjwUCdk73a5_6Q/viewform?usp=header',
     },
     '5to_Perito': {
-        'A': 'https://docs.google.com/forms/d/FORM_5TO_PERITO_A/viewform',
-        'B': 'https://docs.google.com/forms/d/FORM_5TO_PERITO_B/viewform',
-        'C': 'https://docs.google.com/forms/d/FORM_5TO_PERITO_C/viewform',
+        'A': 'https://docs.google.com/forms/d/e/1FAIpQLSfLgUDVPvos0fXMu2i55nKMn-TZkH-lZ4HABBgWXsGgFGrIXQ/viewform?usp=header',
+        'B': 'https://docs.google.com/forms/d/e/1FAIpQLScinHn-OXs1vfiUrQj2P5l1JsnKoXkgSKqvJ2cvyve4uTrRPA/viewform?usp=dialog',
+        'C': 'https://docs.google.com/forms/d/e/1FAIpQLSfQnWAj2cT5tt5g-apHraRXsnzAIgNU0b52zuV0L2OgOfAmHA/viewform?usp=header',
     }
 }
 
-# Crear tabla si no existe
+
+# Crear base de datos y tabla si no existen
 def crear_base():
     with sqlite3.connect("examenes.db") as con:
         con.execute('''
             CREATE TABLE IF NOT EXISTS examenes (
-                id INTEGER PRIMARY KEY,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 nombre TEXT, apellido TEXT, correo TEXT,
                 grado TEXT, seccion TEXT, variante TEXT
             )
@@ -54,34 +55,25 @@ crear_base()
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
-        nombre  = request.form.get('nombre')
-        apellido= request.form.get('apellido')
-        correo  = request.form.get('correo')
-        grado   = request.form.get('grado')
+        nombre = request.form.get('nombre')
+        apellido = request.form.get('apellido')
+        correo = request.form.get('correo')
+        grado = request.form.get('grado')
         seccion = request.form.get('seccion')
 
-        # Validación de grado
         if grado not in VARIANTES_POR_GRADO:
             return "Grado inválido", 400
 
-        # Asignar variante sólo de ese grado
         variante = random.choice(VARIANTES_POR_GRADO[grado])
-        # Obtener enlace correspondiente
         enlace = GOOGLE_FORMS[grado][variante]
 
-        # Guardar en DB
-        with sqlite3.connect("examenes.db") as con:
+        with sqlite3.connect("examenes.db", check_same_thread=False) as con:
             con.execute('''
                 INSERT INTO examenes (nombre, apellido, correo, grado, seccion, variante)
                 VALUES (?, ?, ?, ?, ?, ?)
             ''', (nombre, apellido, correo, grado, seccion, variante))
 
-        # Mostrar pantalla de variante y enlace
-        return render_template("variante.html",
-                               nombre=nombre,
-                               grado=grado,
-                               variante=variante,
-                               enlace=enlace)
+        return render_template("variante.html", nombre=nombre, grado=grado, variante=variante, enlace=enlace)
 
     return render_template("index.html")
 
@@ -90,8 +82,8 @@ def index():
 def login():
     error = None
     if request.method == 'POST':
-        usuario   = request.form.get('usuario')
-        contrasena= request.form.get('contrasena')
+        usuario = request.form.get('usuario')
+        contrasena = request.form.get('contrasena')
         if usuario == ADMIN_USER and contrasena == ADMIN_PASS:
             session['admin'] = True
             return redirect(url_for('admin'))
@@ -104,7 +96,7 @@ def admin():
     if not session.get('admin'):
         return redirect(url_for('login'))
 
-    with sqlite3.connect("examenes.db") as con:
+    with sqlite3.connect("examenes.db", check_same_thread=False) as con:
         datos = con.execute(
             "SELECT nombre, apellido, correo, grado, seccion, variante FROM examenes"
         ).fetchall()
@@ -116,13 +108,14 @@ def admin():
 def exportar_excel():
     if not session.get('admin'):
         return redirect(url_for('login'))
-    df = pd.read_sql("SELECT * FROM examenes", sqlite3.connect("examenes.db"))
+    con = sqlite3.connect("examenes.db", check_same_thread=False)
+    df = pd.read_sql("SELECT * FROM examenes", con)
     salida = BytesIO()
     with pd.ExcelWriter(salida, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Examenes')
     salida.seek(0)
     return send_file(salida,
-                     attachment_filename="examenes.xlsx",
+                     download_name="examenes.xlsx",
                      as_attachment=True,
                      mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
@@ -132,7 +125,8 @@ def exportar_pdf():
     if not session.get('admin'):
         return redirect(url_for('login'))
 
-    rows = sqlite3.connect("examenes.db").execute(
+    con = sqlite3.connect("examenes.db", check_same_thread=False)
+    rows = con.execute(
         "SELECT nombre, apellido, correo, grado, seccion, variante FROM examenes"
     ).fetchall()
 
@@ -140,7 +134,7 @@ def exportar_pdf():
     pdf.add_page()
     pdf.set_font("Arial", size=12)
     pdf.cell(200, 10, txt="Asignaciones de Examen", ln=True, align='C')
-    pdf.ln(5)
+    pdf.ln(10)
 
     for r in rows:
         linea = f"{r[0]} {r[1]} | {r[2]} | {r[3]} {r[4]} | Variante: {r[5]}"
@@ -150,7 +144,7 @@ def exportar_pdf():
     pdf.output(salida)
     salida.seek(0)
     return send_file(salida,
-                     attachment_filename="examenes.pdf",
+                     download_name="examenes.pdf",
                      as_attachment=True,
                      mimetype="application/pdf")
 
