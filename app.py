@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, send_file
+from flask import Flask, render_template, request, redirect, url_for, session, send_file, jsonify
 import random
 import sqlite3
 import pandas as pd
@@ -38,8 +38,7 @@ GOOGLE_FORMS = {
     }
 }
 
-
-# Crear base de datos y tabla si no existen
+# Crear base de datos
 def crear_base():
     with sqlite3.connect("examenes.db") as con:
         con.execute('''
@@ -77,7 +76,6 @@ def index():
 
     return render_template("index.html")
 
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     error = None
@@ -90,20 +88,47 @@ def login():
         error = 'Credenciales incorrectas'
     return render_template("login.html", error=error)
 
-
 @app.route('/admin')
 def admin():
     if not session.get('admin'):
-        return redirect(url_for('login'))  # Corrección aquí
+        return redirect(url_for('login'))
 
     with sqlite3.connect("examenes.db", check_same_thread=False) as con:
         datos = con.execute(
-            "SELECT nombre, apellido, correo, grado, seccion, variante FROM examenes"
+            "SELECT rowid, nombre, apellido, correo, grado, seccion, variante FROM examenes"
         ).fetchall()
 
-    return render_template("admin.html", datos=datos)
+    grados = list(VARIANTES_POR_GRADO.keys())
+    return render_template("admin.html", datos=datos, grados=grados, grado=None, seccion=None)
 
+@app.route('/filtrar_datos', methods=['POST'])
+def filtrar_datos():
+    if not session.get('admin'):
+        return redirect(url_for('login'))
 
+    grado = request.form.get('grado')
+    seccion = request.form.get('seccion')
+
+    with sqlite3.connect("examenes.db", check_same_thread=False) as con:
+        query = "SELECT rowid, nombre, apellido, correo, grado, seccion, variante FROM examenes WHERE 1=1"
+        params = []
+
+        if grado:
+            query += " AND grado = ?"
+            params.append(grado)
+        if seccion:
+            query += " AND seccion = ?"
+            params.append(seccion)
+
+        datos = con.execute(query, params).fetchall()
+
+    grados = list(VARIANTES_POR_GRADO.keys())
+    return render_template("admin.html", datos=datos, grados=grados, grado=grado, seccion=seccion)
+
+@app.route('/get_secciones/<grado>')
+def get_secciones(grado):
+    secciones = VARIANTES_POR_GRADO.get(grado, [])
+    return jsonify(secciones)
 
 @app.route('/exportar_excel')
 def exportar_excel():
@@ -119,7 +144,6 @@ def exportar_excel():
                      download_name="examenes.xlsx",
                      as_attachment=True,
                      mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
 
 @app.route('/exportar_pdf')
 def exportar_pdf():
@@ -142,19 +166,18 @@ def exportar_pdf():
         pdf.multi_cell(0, 8, linea)
 
     salida = BytesIO()
-    pdf.output(salida)
+    pdf_bytes = pdf.output(dest='S').encode('latin1')
+    salida.write(pdf_bytes)
     salida.seek(0)
     return send_file(salida,
                      download_name="examenes.pdf",
                      as_attachment=True,
                      mimetype="application/pdf")
 
-
 @app.route('/logout')
 def logout():
     session.pop('admin', None)
     return redirect(url_for('index'))
-
 
 if __name__ == '__main__':
     app.run(debug=True)
