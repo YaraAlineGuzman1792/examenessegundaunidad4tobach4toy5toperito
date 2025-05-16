@@ -136,27 +136,34 @@
     </div>
 
     <script>
-    const gradoSeleccionado = "{{ grado | default('') }}";
+        async function cargarSecciones() {
+            const gradoSelect = document.getElementById('grado');
+            const seccionSelect = document.getElementById('seccion');
+            const grado = gradoSelect.value;
 
-    window.onload = () => {
-        if (gradoSeleccionado !== "") {
-            $.get("/get_secciones/" + gradoSeleccionado, function (data) {
-                const seccionSelect = $('#seccion');
-                seccionSelect.empty();
-                seccionSelect.append('<option value="">Seleccione una sección</option>');
-                $.each(data, function (i, seccion) {
-                    const selected = seccion === "{{ seccion | default('') }}" ? 'selected' : '';
-                    seccionSelect.append('<option value="' + seccion + '" ' + selected + '>' + seccion + '</option>');
-                });
+            seccionSelect.innerHTML = '<option value="">Seleccione una sección</option>';
 
-                // Asignar el grado seleccionado (por si el navegador resetea el valor al cargar)
-                $('#grado').val(gradoSeleccionado);
-            });
+            if (grado) {
+                const response = await fetch(`/get_secciones/${grado}`);
+                if (response.ok) {
+                    const secciones = await response.json();
+                    secciones.forEach(seccion => {
+                        const option = document.createElement('option');
+                        option.value = seccion;
+                        option.textContent = seccion;
+                        seccionSelect.appendChild(option);
+                    });
+                }
+            }
         }
-    };
-</script>
 
-
+        // Si hay grado seleccionado al cargar la página, carga las secciones automáticamente
+        window.onload = () => {
+            {% if grado %}
+                cargarSecciones();
+            {% endif %}
+        };
+    </script>
 
 </body>
 </html>
