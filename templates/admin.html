@@ -158,11 +158,15 @@
         }
 
         // Si hay grado seleccionado al cargar la página, carga las secciones automáticamente
-        window.onload = () => {
-            {% if grado %}
-                cargarSecciones();
-            {% endif %}
-        };
+
+    window.onload = () => {
+        const gradoSeleccionado = "{{ grado }}";
+        if (gradoSeleccionado) {
+            cargarSecciones();
+        }
+    };
+
+
     </script>
 
 </body>
