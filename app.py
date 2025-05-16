@@ -1,43 +1,64 @@
 from flask import Flask, render_template, request, redirect, url_for, session, send_file
 import sqlite3
 import random
-import os
-from io import BytesIO
 import pandas as pd
 from fpdf import FPDF
+import os
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'clave_dev_segura')
-# Si usas Render con HTTPS, déjalo activo. Si pruebas local, puedes comentar para evitar problemas:
-app.config['SESSION_COOKIE_SECURE'] = True
+app.secret_key = 'clave_secreta'
 
+# Ruta a la base de datos
 DATABASE = 'estudiantes.db'
 
-def get_connection():
-    return sqlite3.connect(DATABASE)
 
-def create_table():
+# ---------------------- BASE DE DATOS ------------------------
+
+def get_connection():
+    conn = sqlite3.connect(DATABASE)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db():
     conn = get_connection()
     c = conn.cursor()
     c.execute('''
-        CREATE TABLE IF NOT EXISTS estudiantes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nombre TEXT NOT NULL,
-            apellido TEXT NOT NULL,
-            correo TEXT NOT NULL,
-            grado TEXT NOT NULL,
-            seccion TEXT NOT NULL,
-            variante TEXT NOT NULL
-        )
-    ''')
+              CREATE TABLE IF NOT EXISTS estudiantes
+              (
+                  id
+                  INTEGER
+                  PRIMARY
+                  KEY
+                  AUTOINCREMENT,
+                  nombre
+                  TEXT,
+                  apellido
+                  TEXT,
+                  correo
+                  TEXT,
+                  grado
+                  TEXT,
+                  seccion
+                  TEXT,
+                  variante
+                  TEXT
+              )
+              ''')
     conn.commit()
     conn.close()
 
-create_table()
+
+# Inicializa la base de datos
+init_db()
+
+
+# ---------------------- RUTAS PRINCIPALES ------------------------
 
 @app.route('/')
 def index():
     return render_template('index.html')
+
 
 @app.route('/asignar', methods=['POST'])
 def asignar():
@@ -61,9 +82,9 @@ def asignar():
     conn = get_connection()
     c = conn.cursor()
     c.execute('''
-        INSERT INTO estudiantes (nombre, apellido, correo, grado, seccion, variante)
-        VALUES (?, ?, ?, ?, ?, ?)
-    ''', (nombre, apellido, correo, grado, seccion, variante))
+              INSERT INTO estudiantes (nombre, apellido, correo, grado, seccion, variante)
+              VALUES (?, ?, ?, ?, ?, ?)
+              ''', (nombre, apellido, correo, grado, seccion, variante))
     conn.commit()
     conn.close()
 
@@ -85,69 +106,97 @@ def asignar():
         }
     }
 
-    return redirect(formularios_google[grado][variante])
+    # Guardar en sesión
+    session['nombre'] = nombre
+    session['apellido'] = apellido
+    session['variante'] = variante
+    session['link_formulario'] = formularios_google[grado][variante]
+
+    return redirect(url_for('mostrar_variante'))
+
+
+@app.route('/variante')
+def mostrar_variante():
+    if 'nombre' not in session or 'variante' not in session:
+        return redirect(url_for('index'))
+
+    return render_template(
+        'variante.html',
+        nombre=session['nombre'],
+        apellido=session['apellido'],
+        variante=session['variante'],
+        link=session['link_formulario']
+    )
+
+
+# ---------------------- LOGIN Y PANEL ADMIN ------------------------
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        usuario = request.form.get('usuario')
-        contrasena = request.form.get('contrasena')
-
-        if usuario == 'Ali-Chan1703' and contrasena == 'Ali-Chan1703':
+        usuario = request.form['usuario']
+        contrasena = request.form['contrasena']
+        if usuario == 'admin' and contrasena == '1234':
             session['usuario'] = usuario
             return redirect(url_for('admin'))
         else:
             return render_template('login.html', error='Credenciales incorrectas')
-
     return render_template('login.html')
 
-@app.route('/admin', methods=['GET'])
+
+@app.route('/admin')
 def admin():
-    if 'usuario' in session:
-        return render_template('admin.html')
-    else:
+    if 'usuario' not in session:
         return redirect(url_for('login'))
+
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute('SELECT * FROM estudiantes')
+    estudiantes = c.fetchall()
+    conn.close()
+    return render_template('admin.html', estudiantes=estudiantes)
+
 
 @app.route('/logout')
 def logout():
-    session.pop('usuario', None)
+    session.clear()
     return redirect(url_for('index'))
+
+
+# ---------------------- EXPORTACIONES ------------------------
 
 @app.route('/exportar_excel')
 def exportar_excel():
     conn = get_connection()
     df = pd.read_sql_query("SELECT * FROM estudiantes", conn)
     conn.close()
+    df.to_excel('estudiantes.xlsx', index=False)
+    return send_file('estudiantes.xlsx', as_attachment=True)
 
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Estudiantes')
-
-    output.seek(0)
-    return send_file(output, download_name="estudiantes.xlsx", as_attachment=True)
 
 @app.route('/exportar_pdf')
 def exportar_pdf():
     conn = get_connection()
     c = conn.cursor()
-    c.execute("SELECT * FROM estudiantes")
-    datos = c.fetchall()
+    c.execute('SELECT * FROM estudiantes')
+    estudiantes = c.fetchall()
     conn.close()
 
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Arial", size=10)
-    pdf.cell(200, 10, txt="Listado de Estudiantes", ln=True, align='C')
+    pdf.set_font("Arial", size=12)
+    pdf.cell(200, 10, txt="Lista de Estudiantes", ln=True, align='C')
     pdf.ln(10)
 
-    for fila in datos:
-        fila_texto = ' | '.join(str(campo) for campo in fila)
-        pdf.cell(200, 10, txt=fila_texto, ln=True)
+    for estudiante in estudiantes:
+        linea = f"{estudiante['nombre']} {estudiante['apellido']} - {estudiante['grado']} {estudiante['seccion']} - Variante: {estudiante['variante']}"
+        pdf.cell(200, 10, txt=linea, ln=True)
 
-    output = BytesIO()
-    pdf.output(output)
-    output.seek(0)
-    return send_file(output, download_name="estudiantes.pdf", as_attachment=True)
+    pdf.output("estudiantes.pdf")
+    return send_file("estudiantes.pdf", as_attachment=True)
+
+
+# ---------------------- INICIAR APP ------------------------
 
 if __name__ == '__main__':
-    app.run(debug=False)
+    app.run(debug=True)
