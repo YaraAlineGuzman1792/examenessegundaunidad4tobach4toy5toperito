@@ -1,12 +1,18 @@
+# app.py con PostgreSQL
 from flask import Flask, render_template, request, redirect, url_for, session, send_file, jsonify
 import random
-import sqlite3
 import pandas as pd
 from io import BytesIO
 from fpdf import FPDF
+from sqlalchemy import create_engine, text
+import os
 
 app = Flask(__name__)
 app.secret_key = 'clave_secreta_segura'
+
+# URL de conexión a PostgreSQL (Render)
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://admin:Yo7Ux6uNqx6hHZTRYr7X8oqNVmQoENoF@dpg-d0k0p0t6ubrc73as22k0-a.oregon-postgres.render.com/examenes_zrac")
+engine = create_engine(DATABASE_URL, connect_args={"sslmode": "require"})
 
 # Credenciales del administrador
 ADMIN_USER = 'Ali-Chan1703'
@@ -38,16 +44,20 @@ GOOGLE_FORMS = {
     }
 }
 
-# Crear base de datos
+# Crear tabla si no existe
 def crear_base():
-    with sqlite3.connect("examenes.db") as con:
-        con.execute('''
+    with engine.begin() as con:
+        con.execute(text('''
             CREATE TABLE IF NOT EXISTS examenes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nombre TEXT, apellido TEXT, correo TEXT,
-                grado TEXT, seccion TEXT, variante TEXT
+                id SERIAL PRIMARY KEY,
+                nombre TEXT,
+                apellido TEXT,
+                correo TEXT,
+                grado TEXT,
+                seccion TEXT,
+                variante TEXT
             )
-        ''')
+        '''))
 
 crear_base()
 
@@ -66,11 +76,18 @@ def index():
         variante = random.choice(VARIANTES_POR_GRADO[grado])
         enlace = GOOGLE_FORMS[grado][variante]
 
-        with sqlite3.connect("examenes.db", check_same_thread=False) as con:
-            con.execute('''
+        with engine.begin() as con:
+            con.execute(text('''
                 INSERT INTO examenes (nombre, apellido, correo, grado, seccion, variante)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (nombre, apellido, correo, grado, seccion, variante))
+                VALUES (:nombre, :apellido, :correo, :grado, :seccion, :variante)
+            '''), {
+                'nombre': nombre,
+                'apellido': apellido,
+                'correo': correo,
+                'grado': grado,
+                'seccion': seccion,
+                'variante': variante
+            })
 
         return render_template("variante.html", nombre=nombre, grado=grado, variante=variante, enlace=enlace)
 
@@ -93,10 +110,10 @@ def admin():
     if not session.get('admin'):
         return redirect(url_for('login'))
 
-    with sqlite3.connect("examenes.db", check_same_thread=False) as con:
-        datos = con.execute(
-            "SELECT rowid, nombre, apellido, correo, grado, seccion, variante FROM examenes"
-        ).fetchall()
+    with engine.begin() as con:
+        datos = con.execute(text("""
+            SELECT id, nombre, apellido, correo, grado, seccion, variante FROM examenes
+        """)).fetchall()
 
     grados = list(VARIANTES_POR_GRADO.keys())
     return render_template("admin.html", datos=datos, grados=grados, grado=None, seccion=None)
@@ -109,18 +126,18 @@ def filtrar_datos():
     grado = request.form.get('grado')
     seccion = request.form.get('seccion')
 
-    with sqlite3.connect("examenes.db", check_same_thread=False) as con:
-        query = "SELECT rowid, nombre, apellido, correo, grado, seccion, variante FROM examenes WHERE 1=1"
-        params = []
+    query = "SELECT id, nombre, apellido, correo, grado, seccion, variante FROM examenes WHERE 1=1"
+    params = {}
 
-        if grado:
-            query += " AND grado = ?"
-            params.append(grado)
-        if seccion:
-            query += " AND seccion = ?"
-            params.append(seccion)
+    if grado:
+        query += " AND grado = :grado"
+        params['grado'] = grado
+    if seccion:
+        query += " AND seccion = :seccion"
+        params['seccion'] = seccion
 
-        datos = con.execute(query, params).fetchall()
+    with engine.begin() as con:
+        datos = con.execute(text(query), params).fetchall()
 
     grados = list(VARIANTES_POR_GRADO.keys())
     return render_template("admin.html", datos=datos, grados=grados, grado=grado, seccion=seccion)
@@ -134,26 +151,19 @@ def get_secciones(grado):
 def exportar_excel():
     if not session.get('admin'):
         return redirect(url_for('login'))
-    con = sqlite3.connect("examenes.db", check_same_thread=False)
-    df = pd.read_sql("SELECT * FROM examenes", con)
+    df = pd.read_sql("SELECT * FROM examenes", engine)
     salida = BytesIO()
     with pd.ExcelWriter(salida, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Examenes')
     salida.seek(0)
-    return send_file(salida,
-                     download_name="examenes.xlsx",
-                     as_attachment=True,
-                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    return send_file(salida, download_name="examenes.xlsx", as_attachment=True, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 @app.route('/exportar_pdf')
 def exportar_pdf():
     if not session.get('admin'):
         return redirect(url_for('login'))
 
-    con = sqlite3.connect("examenes.db", check_same_thread=False)
-    rows = con.execute(
-        "SELECT nombre, apellido, correo, grado, seccion, variante FROM examenes"
-    ).fetchall()
+    rows = engine.execute(text("SELECT nombre, apellido, correo, grado, seccion, variante FROM examenes")).fetchall()
 
     pdf = FPDF()
     pdf.add_page()
@@ -169,10 +179,7 @@ def exportar_pdf():
     pdf_bytes = pdf.output(dest='S').encode('latin1')
     salida.write(pdf_bytes)
     salida.seek(0)
-    return send_file(salida,
-                     download_name="examenes.pdf",
-                     as_attachment=True,
-                     mimetype="application/pdf")
+    return send_file(salida, download_name="examenes.pdf", as_attachment=True, mimetype="application/pdf")
 
 @app.route('/logout')
 def logout():
